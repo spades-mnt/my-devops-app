@@ -10,18 +10,28 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       -uses: actions/checkout@v4
-      -uses: actions/setup-node@v4
-       with:
-         node-version: 18
-      -run: npm install
-      -run: npm test
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+      - name: Install dependencies and build
+        run: npm install && npm run build
+      - name: Run tests
+        run: npm test
 
-build-and-deploy:
+  build-and-deploy:
     needs: test
     runs-on: ubuntu-latest
     steps:
-        -uses: actions/checkout@v4
-        -name: Build Docker image
-         run: docker build -t my-devops-app .
-        -name: log in to AWS ECR
-         run: aws ecr-get-login-password | docker login --username AWS --password -stdin
+      - uses: actions/checkout@v4
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+      - name: Build Docker image
+        run: docker build -t my-devops-app .
+      - name: Log in to Amazon ECR
+        run: aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com
+      
