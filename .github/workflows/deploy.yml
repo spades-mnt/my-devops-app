@@ -59,8 +59,8 @@ jobs:
 
       - name: Set up SSH key for EC2 access
         run: |
-          echo "${{ secrets.EC2_SSH_PUBLIC_KEY }}" > private_key.pem
-          chmod 600 public_key.pem
+          echo "${{ secrets.EC2_SSH_PRIVATE_KEY }}" > private_key.pem
+          chmod 600 private_key.pem
 
       - name: Deploy Docker Image on EC2
         run: |
