@@ -1,54 +1,78 @@
 name: CI/CD Pipeline
+
 on:
   push:
     branches: ["main"]
   pull_request:
     branches: ["main"]
 
+env:
+  AWS_REGION: us-east-1
+  ECR_REGISTRY: 396913734479.dkr.ecr.us-east-1.amazonaws.com
+  ECR_REPOSITORY: my-devops-app
+  IMAGE_TAG: latest
+  EC2_USER: ubuntu
+  EC2_HOST: 51.20.31.145
+
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: 18
-      - run: npm install
-      - run: npm test # (Add tests later)
 
-      build-and-deploy:
-        needs: test
-        runs-on: ubuntu-latest
+      - run: npm install
+      - run: npm test # Add your actual tests later
+
+  build-and-deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_REGION: ${{ env.AWS_REGION }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Build Docker image
+        run: docker build -t $ECR_REPOSITORY .
+
+      - name: Login to Amazon ECR
+        run: |
+          aws ecr get-login-password --region $AWS_REGION | \
+          docker login --username AWS --password-stdin $ECR_REGISTRY
+
+      - name: Tag and Push Docker Image to ECR
+        run: |
+          docker tag $ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+
+      - name: Set up SSH key for EC2 access
+        run: |
+          echo "${{ secrets.EC2_SSH_PRIVATE_KEY }}" > private_key.pem
+          chmod 600 private_key.pem
+
+      - name: Deploy Docker Image on EC2
+        run: |
+          ssh -o StrictHostKeyChecking=no -i private_key.pem $EC2_USER@$EC2_HOST "
+            docker pull $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG &&
+            docker stop my-app || true &&
+            docker rm my-app || true &&
+            docker run -d -p 3000:3000 --name my-app $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          "
+
+      - name: Send Slack Notification
+        uses: rtCamp/action-slack-notify@v2
         env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_REGION: us-east-1
-        steps:
-          - uses: actions/checkout@v4
-    
-          - name: Build Docker image
-            run: docker build -t my-devops-app .
-    
-          - name: Login to Amazon ECR
-            run: |
-              aws ecr get-login-password --region $AWS_REGION | \
-              docker login --username AWS --password-stdin 396913734479.dkr.ecr.$AWS_REGION.amazonaws.com
-    
-          - name: Push to ECR
-            run: |
-              docker tag my-devops-app:latest 396913734479.dkr.ecr.$AWS_REGION.amazonaws.com/my-devops-app:latest
-              docker push 396913734479.dkr.ecr.$AWS_REGION.amazonaws.com/my-devops-app:latest
-    
-          - name: Deploy to EC2
-            run: |
-              ssh -o StrictHostKeyChecking=no ubuntu@51.20.31.145 \
-              "docker pull 396913734479.dkr.ecr.$AWS_REGION.amazonaws.com/my-devops-app:latest && \
-               docker stop my-app || true && docker rm my-app || true && \
-               docker run -d -p 3000:3000 --name my-app 396913734479.dkr.ecr.$AWS_REGION.amazonaws.com/my-devops-app:latest"
-    
-          - name: Slack Notification
-            uses: rtCamp/action-slack-notify@v2
-            env:
-              SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-              SLACK_MESSAGE: "🚀 Deployment succeeded! Check details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-    
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_MESSAGE: "🚀 Deployment succeeded! [Run details](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
