@@ -16,29 +16,39 @@ jobs:
       - run: npm install
       - run: npm test # (Add tests later)
 
-  build-and-deploy:
-    needs: test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Build Docker image
-        run: docker build -t my-devops-app .
-      - name: Login to Amazon ECR
+      build-and-deploy:
+        needs: test
+        runs-on: ubuntu-latest
         env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_REGION: us-east-1
-        run: |
-          aws ecr get-login-password --region $AWS_REGION | \
-          docker login --username AWS --password-stdin 396913734479.dkr.ecr.$AWS_REGION.amazonaws.com
-      
-      - name: Push to ECR
-        run: |
-          docker tag my-devops-app:latest .dkr.ecr.$AWS_REGION.amazonaws.com/my-devops-app:latest
-          docker push 396913734479.dkr.ecr.$AWS_REGION.amazonaws.com/my-devops-app:latest
-      - name: Deploy to EC2
-        run: |
-          ssh -o StrictHostKeyChecking=no ubuntu@51.20.31.145 "docker pull 396913734479.dkr.ecr.$AWS_REGION.amazonaws.com/my-devops-app:latest && docker stop my-app || true && docker rm my-app || true && docker run -d -p 3000:3000 --name my-app 396913734479.dkr.ecr.$AWS_REGION.amazonaws.com/my-devops-app:latest"
-      - name: Slack Notification
-        uses: rtCamp/action-slack-notify@v2
-        env:
-            SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-            SLACK_MESSAGE: "🚀 Deployment succeeded! Check details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+        steps:
+          - uses: actions/checkout@v4
+    
+          - name: Build Docker image
+            run: docker build -t my-devops-app .
+    
+          - name: Login to Amazon ECR
+            run: |
+              aws ecr get-login-password --region $AWS_REGION | \
+              docker login --username AWS --password-stdin 396913734479.dkr.ecr.$AWS_REGION.amazonaws.com
+    
+          - name: Push to ECR
+            run: |
+              docker tag my-devops-app:latest 396913734479.dkr.ecr.$AWS_REGION.amazonaws.com/my-devops-app:latest
+              docker push 396913734479.dkr.ecr.$AWS_REGION.amazonaws.com/my-devops-app:latest
+    
+          - name: Deploy to EC2
+            run: |
+              ssh -o StrictHostKeyChecking=no ubuntu@51.20.31.145 \
+              "docker pull 396913734479.dkr.ecr.$AWS_REGION.amazonaws.com/my-devops-app:latest && \
+               docker stop my-app || true && docker rm my-app || true && \
+               docker run -d -p 3000:3000 --name my-app 396913734479.dkr.ecr.$AWS_REGION.amazonaws.com/my-devops-app:latest"
+    
+          - name: Slack Notification
+            uses: rtCamp/action-slack-notify@v2
+            env:
+              SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+              SLACK_MESSAGE: "🚀 Deployment succeeded! Check details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+    
