@@ -55,3 +55,10 @@ jobs:
       - name: Deploy to ec2
         run: |
           ssh -o StrictHostKeyChecking=no ubuntu@YOUR_EC2_IP "docker pull YOUR_ACCOUNT_ID.dkr.ecr.REGION.amazonaws.com/my-devops-app:latest && docker stop my-app || true && docker rm my-app || true && docker run -d -p 3000:3000 --name my-app YOUR_ACCOUNT_ID.dkr.ecr.REGION.amazonaws.com/my-devops-app:latest"
+
+      - name: Slack Notification
+        uses: rtCamp/action-slack-notify@v2
+        env:
+            SLACK_WEBHOOK: ${{secrets.SLACK_WEBHOOK_URL}}
+            SLACK_MESSAGE: :Deployment succeeded"
+        if: success()  
