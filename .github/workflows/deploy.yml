@@ -26,14 +26,14 @@ jobs:
       - name: Log in to AWS ECR
         env:
             AWS_REGION: us-east-1
-        run: aws ecr get-login-password | docker login --username AWS --password-stdin 396913734479.dkr.ecr.REGION.amazonaws.com
+        run: aws ecr get-login-password | docker login --username AWS --password-stdin 396913734479.dkr.ecr.us-east-1.amazonaws.com
       - name: Push to ECR
         run: |
-          docker tag my-devops-app:latest .dkr.ecr.REGION.amazonaws.com/my-devops-app:latest
-          docker push 396913734479.dkr.ecr.REGION.amazonaws.com/my-devops-app:latest
+          docker tag my-devops-app:latest .dkr.ecr.us-east-1.amazonaws.com/my-devops-app:latest
+          docker push 396913734479.dkr.ecr.us-east-1.amazonaws.com/my-devops-app:latest
       - name: Deploy to EC2
         run: |
-          ssh -o StrictHostKeyChecking=no ubuntu@YOUR_EC2_IP "docker pull 396913734479.dkr.ecr.REGION.amazonaws.com/my-devops-app:latest && docker stop my-app || true && docker rm my-app || true && docker run -d -p 3000:3000 --name my-app 396913734479.dkr.ecr.REGION.amazonaws.com/my-devops-app:latest"
+          ssh -o StrictHostKeyChecking=no ubuntu@YOUR_EC2_IP "docker pull 396913734479.dkr.ecr.us-east-1.amazonaws.com/my-devops-app:latest && docker stop my-app || true && docker rm my-app || true && docker run -d -p 3000:3000 --name my-app 396913734479.dkr.ecr.us-east-1.amazonaws.com/my-devops-app:latest"
       - name: Slack Notification
         uses: rtCamp/action-slack-notify@v2
         env:
